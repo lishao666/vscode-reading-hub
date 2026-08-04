@@ -1,0 +1,99 @@
+{
+  "name": "vscode-weread",
+  "displayName": "VS Code WeRead",
+  "description": "在 VS Code 状态栏阅读微信读书正文，支持翻页、章节切换和阅读位置恢复。",
+  "version": "0.1.0",
+  "publisher": "local",
+  "license": "MIT",
+  "homepage": "https://github.com/lishao666/vscode-weread#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lishao666/vscode-weread.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lishao666/vscode-weread/issues"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["Other"],
+  "keywords": ["WeRead", "微信读书", "reading", "book", "reader", "阅读"],
+  "activationEvents": [
+    "onCommand:vscodeWeread.openReader",
+    "onCommand:vscodeWeread.selectBook",
+    "onCommand:vscodeWeread.selectChapter",
+    "onCommand:vscodeWeread.refresh",
+    "onCommand:vscodeWeread.login",
+    "onCommand:vscodeWeread.configureApiKey",
+    "onCommand:vscodeWeread.configureSession",
+    "onCommand:vscodeWeread.clearData"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "vscodeWeread.openReader", "title": "微信读书：开始阅读", "icon": "$(book-open)" },
+      { "command": "vscodeWeread.selectBook", "title": "微信读书：书架" },
+      { "command": "vscodeWeread.selectChapter", "title": "微信读书：选择章节" },
+      { "command": "vscodeWeread.refresh", "title": "微信读书：刷新" },
+      { "command": "vscodeWeread.login", "title": "微信读书：自动登录" },
+      { "command": "vscodeWeread.previous", "title": "微信读书：上一页" },
+      { "command": "vscodeWeread.next", "title": "微信读书：下一页" },
+      { "command": "vscodeWeread.previousChapter", "title": "微信读书：上一章" },
+      { "command": "vscodeWeread.nextChapter", "title": "微信读书：下一章" },
+      { "command": "vscodeWeread.hide", "title": "微信读书：老板键（显示/隐藏）" },
+      { "command": "vscodeWeread.configureApiKey", "title": "微信读书：配置 API Key" },
+      { "command": "vscodeWeread.configureSession", "title": "微信读书：手动粘贴网页登录态" },
+      { "command": "vscodeWeread.clearData", "title": "微信读书：清除登录信息和缓存" }
+    ],
+    "keybindings": [
+      { "command": "vscodeWeread.openReader", "key": "ctrl+alt+;", "mac": "cmd+alt+;" },
+      { "command": "vscodeWeread.previous", "key": "ctrl+alt+,", "mac": "cmd+,", "when": "vscodeWeread.readerVisible && config.vscodeWeread.enableDefaultKeybindings" },
+      { "command": "vscodeWeread.next", "key": "ctrl+alt+.", "mac": "cmd+.", "when": "vscodeWeread.readerVisible && config.vscodeWeread.enableDefaultKeybindings" },
+      { "command": "vscodeWeread.previousChapter", "key": "ctrl+alt+up", "mac": "cmd+alt+up", "when": "vscodeWeread.readerVisible && config.vscodeWeread.enableDefaultKeybindings" },
+      { "command": "vscodeWeread.nextChapter", "key": "ctrl+alt+down", "mac": "cmd+alt+down", "when": "vscodeWeread.readerVisible && config.vscodeWeread.enableDefaultKeybindings" },
+      { "command": "vscodeWeread.hide", "key": "ctrl+alt+m", "mac": "ctrl+cmd+m", "when": "vscodeWeread.readerStarted && config.vscodeWeread.enableDefaultKeybindings" }
+    ],
+    "configuration": {
+      "title": "VS Code WeRead",
+      "properties": {
+        "vscodeWeread.statusBarMaxLength": {
+          "type": "number",
+          "default": 50,
+          "minimum": 20,
+          "maximum": 160,
+          "description": "状态栏每条正文的目标最大字数"
+        },
+        "vscodeWeread.showControlButtons": {
+          "type": "boolean",
+          "default": false,
+          "description": "在正文两侧显示上一章、上一页、下一页、下一章按钮"
+        },
+        "vscodeWeread.clickContentToNext": {
+          "type": "boolean",
+          "default": false,
+          "description": "点击状态栏正文时进入下一页"
+        },
+        "vscodeWeread.enableDefaultKeybindings": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用微信读书默认快捷键；关闭后可在键盘快捷方式中自行绑定命令"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "test": "npm run compile && node --test test/*.test.js",
+    "package": "npm run compile && npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.6.0",
+    "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "playwright-core": "^1.54.0"
+  }
+}
