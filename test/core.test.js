@@ -27,10 +27,10 @@ test("repairs mixed UTF-8 bytes without replacement characters", () => {
 });
 
 test("parses a copied curl session", () => {
-  const session = parseSession("curl 'https://weread.qq.com/web/book/read' -H 'cookie: wr_vid=1; wr_skey=abc' -H 'user-agent: Test Agent' -H 'x-wrpa-0: signed-value'");
-  assert.equal(session.cookie, "wr_vid=1; wr_skey=abc");
+  const session = parseSession("curl 'https://weread.qq.com/web/book/read' -H 'cookie: mock_a=1; mock_b=example' -H 'user-agent: Test Agent' -H 'x-wrpa-0: mock-signature'");
+  assert.equal(session.cookie, "mock_a=1; mock_b=example");
   assert.equal(session.userAgent, "Test Agent");
-  assert.equal(session.protectedHeaders["x-wrpa-0"], "signed-value");
+  assert.equal(session.protectedHeaders["x-wrpa-0"], "mock-signature");
 });
 
 test("splits long content for the VS Code status bar", () => {

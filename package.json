@@ -1,17 +1,17 @@
 {
-  "name": "vscode-weread",
-  "displayName": "VS Code WeRead",
-  "description": "在 VS Code 状态栏阅读微信读书正文，支持翻页、章节切换和阅读位置恢复。",
+  "name": "vscode-reading-hub",
+  "displayName": "VS Code 阅读中心",
+  "description": "非官方第三方阅读工具，在 VS Code 状态栏按页显示用户有权访问的阅读内容。",
   "version": "0.1.0",
   "publisher": "local",
   "license": "MIT",
-  "homepage": "https://github.com/lishao666/vscode-weread#readme",
+  "homepage": "https://github.com/lishao666/vscode-reading-hub#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/lishao666/vscode-weread.git"
+    "url": "https://github.com/lishao666/vscode-reading-hub.git"
   },
   "bugs": {
-    "url": "https://github.com/lishao666/vscode-weread/issues"
+    "url": "https://github.com/lishao666/vscode-reading-hub/issues"
   },
   "engines": {
     "vscode": "^1.90.0"
@@ -19,64 +19,64 @@
   "categories": ["Other"],
   "keywords": ["WeRead", "微信读书", "reading", "book", "reader", "阅读"],
   "activationEvents": [
-    "onCommand:vscodeWeread.openReader",
-    "onCommand:vscodeWeread.selectBook",
-    "onCommand:vscodeWeread.selectChapter",
-    "onCommand:vscodeWeread.refresh",
-    "onCommand:vscodeWeread.login",
-    "onCommand:vscodeWeread.configureApiKey",
-    "onCommand:vscodeWeread.configureSession",
-    "onCommand:vscodeWeread.clearData"
+    "onCommand:vscodeReading.openReader",
+    "onCommand:vscodeReading.selectBook",
+    "onCommand:vscodeReading.selectChapter",
+    "onCommand:vscodeReading.refresh",
+    "onCommand:vscodeReading.login",
+    "onCommand:vscodeReading.configureApiKey",
+    "onCommand:vscodeReading.configureSession",
+    "onCommand:vscodeReading.clearData"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
-      { "command": "vscodeWeread.openReader", "title": "微信读书：开始阅读", "icon": "$(book-open)" },
-      { "command": "vscodeWeread.selectBook", "title": "微信读书：书架" },
-      { "command": "vscodeWeread.selectChapter", "title": "微信读书：选择章节" },
-      { "command": "vscodeWeread.refresh", "title": "微信读书：刷新" },
-      { "command": "vscodeWeread.login", "title": "微信读书：自动登录" },
-      { "command": "vscodeWeread.previous", "title": "微信读书：上一页" },
-      { "command": "vscodeWeread.next", "title": "微信读书：下一页" },
-      { "command": "vscodeWeread.previousChapter", "title": "微信读书：上一章" },
-      { "command": "vscodeWeread.nextChapter", "title": "微信读书：下一章" },
-      { "command": "vscodeWeread.hide", "title": "微信读书：老板键（显示/隐藏）" },
-      { "command": "vscodeWeread.configureApiKey", "title": "微信读书：配置 API Key" },
-      { "command": "vscodeWeread.configureSession", "title": "微信读书：手动粘贴网页登录态" },
-      { "command": "vscodeWeread.clearData", "title": "微信读书：清除登录信息和缓存" }
+      { "command": "vscodeReading.openReader", "title": "阅读：开始阅读", "icon": "$(book-open)" },
+      { "command": "vscodeReading.selectBook", "title": "阅读：书架" },
+      { "command": "vscodeReading.selectChapter", "title": "阅读：选择章节" },
+      { "command": "vscodeReading.refresh", "title": "阅读：刷新" },
+      { "command": "vscodeReading.login", "title": "阅读：登录当前阅读服务" },
+      { "command": "vscodeReading.previous", "title": "阅读：上一页" },
+      { "command": "vscodeReading.next", "title": "阅读：下一页" },
+      { "command": "vscodeReading.previousChapter", "title": "阅读：上一章" },
+      { "command": "vscodeReading.nextChapter", "title": "阅读：下一章" },
+      { "command": "vscodeReading.hide", "title": "阅读：老板键（显示/隐藏）" },
+      { "command": "vscodeReading.configureApiKey", "title": "阅读：配置服务 API Key" },
+      { "command": "vscodeReading.configureSession", "title": "阅读：配置网页登录态" },
+      { "command": "vscodeReading.clearData", "title": "阅读：清除登录信息和缓存" }
     ],
     "keybindings": [
-      { "command": "vscodeWeread.openReader", "key": "ctrl+alt+;", "mac": "cmd+alt+;" },
-      { "command": "vscodeWeread.previous", "key": "ctrl+alt+,", "mac": "cmd+,", "when": "vscodeWeread.readerVisible && config.vscodeWeread.enableDefaultKeybindings" },
-      { "command": "vscodeWeread.next", "key": "ctrl+alt+.", "mac": "cmd+.", "when": "vscodeWeread.readerVisible && config.vscodeWeread.enableDefaultKeybindings" },
-      { "command": "vscodeWeread.previousChapter", "key": "ctrl+alt+up", "mac": "cmd+alt+up", "when": "vscodeWeread.readerVisible && config.vscodeWeread.enableDefaultKeybindings" },
-      { "command": "vscodeWeread.nextChapter", "key": "ctrl+alt+down", "mac": "cmd+alt+down", "when": "vscodeWeread.readerVisible && config.vscodeWeread.enableDefaultKeybindings" },
-      { "command": "vscodeWeread.hide", "key": "ctrl+alt+m", "mac": "ctrl+cmd+m", "when": "vscodeWeread.readerStarted && config.vscodeWeread.enableDefaultKeybindings" }
+      { "command": "vscodeReading.openReader", "key": "ctrl+alt+;", "mac": "cmd+alt+;" },
+      { "command": "vscodeReading.previous", "key": "ctrl+alt+,", "mac": "cmd+,", "when": "vscodeReading.readerVisible && config.vscodeReading.enableDefaultKeybindings" },
+      { "command": "vscodeReading.next", "key": "ctrl+alt+.", "mac": "cmd+.", "when": "vscodeReading.readerVisible && config.vscodeReading.enableDefaultKeybindings" },
+      { "command": "vscodeReading.previousChapter", "key": "ctrl+alt+up", "mac": "cmd+alt+up", "when": "vscodeReading.readerVisible && config.vscodeReading.enableDefaultKeybindings" },
+      { "command": "vscodeReading.nextChapter", "key": "ctrl+alt+down", "mac": "cmd+alt+down", "when": "vscodeReading.readerVisible && config.vscodeReading.enableDefaultKeybindings" },
+      { "command": "vscodeReading.hide", "key": "ctrl+alt+m", "mac": "ctrl+cmd+m", "when": "vscodeReading.readerStarted && config.vscodeReading.enableDefaultKeybindings" }
     ],
     "configuration": {
-      "title": "VS Code WeRead",
+      "title": "VS Code 阅读中心",
       "properties": {
-        "vscodeWeread.statusBarMaxLength": {
+        "vscodeReading.statusBarMaxLength": {
           "type": "number",
           "default": 50,
           "minimum": 20,
           "maximum": 160,
           "description": "状态栏每条正文的目标最大字数"
         },
-        "vscodeWeread.showControlButtons": {
+        "vscodeReading.showControlButtons": {
           "type": "boolean",
           "default": false,
           "description": "在正文两侧显示上一章、上一页、下一页、下一章按钮"
         },
-        "vscodeWeread.clickContentToNext": {
+        "vscodeReading.clickContentToNext": {
           "type": "boolean",
           "default": false,
           "description": "点击状态栏正文时进入下一页"
         },
-        "vscodeWeread.enableDefaultKeybindings": {
+        "vscodeReading.enableDefaultKeybindings": {
           "type": "boolean",
           "default": true,
-          "description": "启用微信读书默认快捷键；关闭后可在键盘快捷方式中自行绑定命令"
+          "description": "启用阅读器默认快捷键；关闭后可在键盘快捷方式中自行绑定命令"
         }
       }
     }

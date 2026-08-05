@@ -7,28 +7,53 @@ import type { Book, Chapter, HttpResponse, ReaderState, WebSession } from "./typ
 
 const SKILL_ENDPOINT = "https://i.weread.qq.com/api/agent/gateway";
 const SKILL_VERSION = "1.0.4";
-const SECRET_API_KEY = "vscodeWeread.apiKey";
-const SECRET_SESSION = "vscodeWeread.webSession";
+const SECRET_API_KEY = "vscodeReading.providers.weread.apiKey";
+const SECRET_SESSION = "vscodeReading.providers.weread.webSession";
+const LEGACY_SECRET_API_KEY = "vscodeWeread.apiKey";
+const LEGACY_SECRET_SESSION = "vscodeWeread.webSession";
 const READER_TOKEN = "3c5c8717f3daf09iop3423zafeqoi";
 
 export class WeReadClient {
+  // Cache chapters read during the current extension process only. Chapter
+  // text is never persisted to disk or prefetched in the background.
   private readonly chapterCache = new Map<string, string>();
+  private dataGeneration = 0;
 
   constructor(private readonly secrets: vscode.SecretStorage) {}
 
   setApiKey(value: string): Thenable<void> { return this.secrets.store(SECRET_API_KEY, value); }
-  getApiKey(): Thenable<string | undefined> { return this.secrets.get(SECRET_API_KEY); }
+  async getApiKey(): Promise<string | undefined> {
+    return this.getAndMigrateSecret(SECRET_API_KEY, LEGACY_SECRET_API_KEY);
+  }
   setSession(value: WebSession): Thenable<void> { return this.secrets.store(SECRET_SESSION, JSON.stringify(value)); }
 
   async getSession(): Promise<WebSession | undefined> {
-    const value = await this.secrets.get(SECRET_SESSION);
+    const value = await this.getAndMigrateSecret(SECRET_SESSION, LEGACY_SECRET_SESSION);
     if (!value) return undefined;
     try { return JSON.parse(value) as WebSession; } catch { return undefined; }
   }
 
   async clear(): Promise<void> {
-    await Promise.all([this.secrets.delete(SECRET_API_KEY), this.secrets.delete(SECRET_SESSION)]);
-    this.chapterCache.clear();
+    this.dataGeneration++;
+    await Promise.all([
+      this.secrets.delete(SECRET_API_KEY),
+      this.secrets.delete(SECRET_SESSION),
+      this.secrets.delete(LEGACY_SECRET_API_KEY),
+      this.secrets.delete(LEGACY_SECRET_SESSION)
+    ]);
+    this.clearChapterCache();
+  }
+
+  clearChapterCache(): void { this.chapterCache.clear(); }
+
+  private async getAndMigrateSecret(currentKey: string, legacyKey: string): Promise<string | undefined> {
+    const current = await this.secrets.get(currentKey);
+    if (current) return current;
+    const legacy = await this.secrets.get(legacyKey);
+    if (!legacy) return undefined;
+    await this.secrets.store(currentKey, legacy);
+    await this.secrets.delete(legacyKey);
+    return legacy;
   }
 
   async getBookshelf(): Promise<Book[]> {
@@ -56,29 +81,39 @@ export class WeReadClient {
   }
 
   async getChapterText(bookId: string, chapter: Chapter, force = false): Promise<string> {
+    const generation = this.dataGeneration;
     const key = `${bookId}:${chapter.chapterUid}`;
     if (!force && this.chapterCache.has(key)) return this.chapterCache.get(key)!;
     const session = await this.requireSession();
-    let state = await this.fetchReaderState(session, bookId, chapter.chapterUid);
+    let state = await this.fetchReaderState(session, bookId, chapter.chapterUid, generation);
     try {
-      const text = await this.fetchCompleteChapter(session, state, bookId, chapter);
+      const text = await this.fetchCompleteChapter(session, state, bookId, chapter, generation);
+      this.assertCurrentGeneration(generation);
       this.chapterCache.set(key, text);
       return text;
     } catch (error) {
-      state = await this.fetchReaderState(session, bookId, chapter.chapterUid);
-      const text = await this.fetchCompleteChapter(session, state, bookId, chapter);
+      if (this.isAccessDenied(error)) throw error;
+      this.assertCurrentGeneration(generation);
+      state = await this.fetchReaderState(session, bookId, chapter.chapterUid, generation);
+      const text = await this.fetchCompleteChapter(session, state, bookId, chapter, generation);
+      this.assertCurrentGeneration(generation);
       this.chapterCache.set(key, text);
       return text;
     }
   }
 
-  private async fetchCompleteChapter(session: WebSession, state: ReaderState, bookId: string, chapter: Chapter): Promise<string> {
-    const normal = await this.fetchChapter(session, state, bookId, chapter, false);
+  private async fetchCompleteChapter(session: WebSession, state: ReaderState, bookId: string, chapter: Chapter, generation: number): Promise<string> {
+    const normal = await this.fetchChapter(session, state, bookId, chapter, false, generation);
     if (!this.looksTruncated(normal, chapter)) return this.repairRenderedTextIfNeeded(session, bookId, chapter, normal);
 
-    // Some paid/EPUB chapters return a preview in the default web-reader mode.
-    // Retry with the alternate style flag used by the web reader and retain the longer result.
-    const alternate = await this.fetchChapter(session, state, bookId, chapter, true).catch(() => "");
+    // The web reader can use more than one rendering mode for content that the
+    // current account is already authorized to read. Both requests use the
+    // same server-validated session and do not bypass access checks.
+    const alternate = await this.fetchChapter(session, state, bookId, chapter, true, generation).catch((error) => {
+      this.assertCurrentGeneration(generation);
+      if (this.isAccessDenied(error)) throw error;
+      return "";
+    });
     const best = alternate.length > normal.length ? alternate : normal;
     if (this.looksTruncated(best, chapter)) {
       throw new Error(`《${chapter.title}》只返回了 ${best.length} 字，目录标记约 ${chapter.wordCount} 字。请在微信读书网页版打开这个付费章节，确认正文已完全显示后，重新复制该页面 /web/book/read 请求的 cURL 并更新网页登录态。`);
@@ -107,8 +142,8 @@ export class WeReadClient {
       Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "Content-Length": String(Buffer.byteLength(body))
     }, body);
     const payload = JSON.parse(response.body || "{}");
-    if (response.statusCode >= 400 || payload.errcode) throw new Error(payload.errmsg || `Skill HTTP ${response.statusCode}`);
-    if (payload.upgrade_info) throw new Error(payload.upgrade_info.message || "微信读书 Skill 需要升级");
+    if (response.statusCode >= 400 || payload.errcode) throw new Error(`Skill 服务请求失败（HTTP ${response.statusCode}）`);
+    if (payload.upgrade_info) throw new Error("微信读书 Skill 需要升级");
     return payload;
   }
 
@@ -118,51 +153,51 @@ export class WeReadClient {
     return session;
   }
 
-  private async fetchReaderState(session: WebSession, bookId: string, chapterUid: number): Promise<ReaderState> {
-    await this.renewSession(session);
+  private async fetchReaderState(session: WebSession, bookId: string, chapterUid: number, generation: number): Promise<ReaderState> {
+    await this.renewSession(session, generation);
     const response = await this.request("GET", this.readerUrl(bookId, chapterUid), this.webHeaders(session, {
       Referer: "https://weread.qq.com/", Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
     }));
-    await this.updateCookies(session, response.headers);
+    await this.updateCookies(session, response.headers, generation);
     const match = response.body.match(/window\.__INITIAL_STATE__\s*=\s*(\{[\s\S]*?\})\s*;\s*\(function/);
     if (!match?.[1]) throw new Error("网页登录态无效或书籍不可读，请重新配置 Cookie");
     const reader = JSON.parse(match[1]).reader || {};
     return { psvts: String(reader.psvts || ""), pclts: String(reader.pclts || ""), token: String(reader.token || READER_TOKEN) };
   }
 
-  private async fetchChapter(session: WebSession, state: ReaderState, bookId: string, chapter: Chapter, style: boolean): Promise<string> {
-    const e0 = await this.postContent(session, state, bookId, chapter.chapterUid, "/web/book/chapter/e_0", style);
+  private async fetchChapter(session: WebSession, state: ReaderState, bookId: string, chapter: Chapter, style: boolean, generation: number): Promise<string> {
+    const e0 = await this.postContent(session, state, bookId, chapter.chapterUid, "/web/book/chapter/e_0", style, generation);
     if (e0.startsWith("{") && e0.includes('"bookId"')) {
-      const t0 = await this.postContent(session, state, bookId, chapter.chapterUid, "/web/book/chapter/t_0", style);
+      const t0 = await this.postContent(session, state, bookId, chapter.chapterUid, "/web/book/chapter/t_0", style, generation);
       let t1 = "";
-      try { t1 = await this.postContent(session, state, bookId, chapter.chapterUid, "/web/book/chapter/t_1", style); } catch {}
+      try { t1 = await this.postContent(session, state, bookId, chapter.chapterUid, "/web/book/chapter/t_1", style, generation); } catch {}
       return normalizeText(decodeContentShards(t0, t1));
     }
     const [e1, e3] = await Promise.all([
-      this.postContent(session, state, bookId, chapter.chapterUid, "/web/book/chapter/e_1", style),
-      this.postContent(session, state, bookId, chapter.chapterUid, "/web/book/chapter/e_3", style)
+      this.postContent(session, state, bookId, chapter.chapterUid, "/web/book/chapter/e_1", style, generation),
+      this.postContent(session, state, bookId, chapter.chapterUid, "/web/book/chapter/e_3", style, generation)
     ]);
     return normalizeText(htmlToText(decodeContentShards(e0, e1, e3)));
   }
 
-  private async postContent(session: WebSession, state: ReaderState, bookId: string, chapterUid: number, endpoint: string, style: boolean): Promise<string> {
+  private async postContent(session: WebSession, state: ReaderState, bookId: string, chapterUid: number, endpoint: string, style: boolean, generation: number): Promise<string> {
     const body = JSON.stringify(this.contentParams(bookId, chapterUid, state.psvts, style));
     const response = await this.request("POST", `https://weread.qq.com${endpoint}`, this.webHeaders(session, {
       Referer: this.readerUrl(bookId, chapterUid), "Content-Type": "application/json;charset=UTF-8", "Content-Length": String(Buffer.byteLength(body))
     }), body);
-    await this.updateCookies(session, response.headers);
+    await this.updateCookies(session, response.headers, generation);
     if (response.statusCode >= 400 || !response.body || response.body === "{}") {
       throw new Error(`章节不可读或登录态失效（HTTP ${response.statusCode}）`);
     }
     return response.body;
   }
 
-  private async renewSession(session: WebSession): Promise<void> {
+  private async renewSession(session: WebSession, generation: number): Promise<void> {
     const body = JSON.stringify({ rq: "%2Fweb%2Fbook%2Fread", ql: false });
     const response = await this.request("POST", "https://weread.qq.com/web/login/renewal", this.webHeaders(session, {
       Referer: "https://weread.qq.com/", "Content-Type": "application/json;charset=UTF-8", "Content-Length": String(Buffer.byteLength(body))
     }), body);
-    await this.updateCookies(session, response.headers);
+    await this.updateCookies(session, response.headers, generation);
   }
 
   private readerUrl(bookId: string, chapterUid: number): string {
@@ -187,7 +222,16 @@ export class WeReadClient {
       Origin: session.origin, Referer: session.referer, "X-Requested-With": "XMLHttpRequest", ...(session.protectedHeaders || {}), ...extra };
   }
 
-  private async updateCookies(session: WebSession, headers: NodeJS.Dict<string | string[]>): Promise<void> {
+  private isAccessDenied(error: unknown): boolean {
+    return error instanceof Error && /章节不可读|无权限|HTTP\s+(401|403)/i.test(error.message);
+  }
+
+  private assertCurrentGeneration(generation: number): void {
+    if (generation !== this.dataGeneration) throw new Error("操作已取消，登录信息已清除");
+  }
+
+  private async updateCookies(session: WebSession, headers: NodeJS.Dict<string | string[]>, generation: number): Promise<void> {
+    this.assertCurrentGeneration(generation);
     const additions = headers["set-cookie"];
     if (!additions) return;
     const values = new Map<string, string>();
@@ -198,7 +242,12 @@ export class WeReadClient {
       const pair = item.split(";", 1)[0]; const index = pair.indexOf("="); if (index > 0) values.set(pair.slice(0, index), pair.slice(index + 1));
     }
     session.cookie = [...values].map(([name, value]) => `${name}=${value}`).join("; ");
+    this.assertCurrentGeneration(generation);
     await this.setSession(session);
+    if (generation !== this.dataGeneration) {
+      await this.secrets.delete(SECRET_SESSION);
+      this.assertCurrentGeneration(generation);
+    }
   }
 
   private request(method: string, requestUrl: string, headers: Record<string, string>, body?: string, redirectCount = 0): Promise<HttpResponse> {

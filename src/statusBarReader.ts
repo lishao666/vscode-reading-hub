@@ -4,10 +4,10 @@ import { WeReadClient } from "./wereadClient";
 import { splitForStatusBar } from "./statusText";
 
 export class StatusBarReader implements vscode.Disposable {
-  private static readonly lastBookKey = "vscodeWeread.lastBookId";
-  private static lastChapterKey(bookId: string): string { return `vscodeWeread.lastChapterUid.${bookId}`; }
+  private static readonly lastBookKey = "vscodeReading.lastBookId";
+  private static lastChapterKey(bookId: string): string { return `vscodeReading.lastChapterUid.${bookId}`; }
   private static lastFragmentKey(bookId: string, chapterUid: number): string {
-    return `vscodeWeread.lastFragmentIndex.${bookId}.${chapterUid}`;
+    return `vscodeReading.lastFragmentIndex.${bookId}.${chapterUid}`;
   }
   // VS Code only supports left/right status bar alignment. Low priorities place
   // the reader after built-in workspace/source-control/problem items, which is
@@ -26,24 +26,24 @@ export class StatusBarReader implements vscode.Disposable {
   private visible = false;
 
   constructor(private readonly client: WeReadClient, private readonly state: vscode.Memento) {
-    this.item.name = "微信读书正文";
+    this.item.name = "阅读正文";
     this.applyConfiguration();
-    this.previousChapterItem.name = "微信读书上一章";
+    this.previousChapterItem.name = "阅读上一章";
     this.previousChapterItem.text = "«";
     this.previousChapterItem.tooltip = "上一章";
-    this.previousChapterItem.command = "vscodeWeread.previousChapter";
-    this.previousItem.name = "微信读书上一页";
+    this.previousChapterItem.command = "vscodeReading.previousChapter";
+    this.previousItem.name = "阅读上一页";
     this.previousItem.text = "‹";
     this.previousItem.tooltip = "上一页";
-    this.previousItem.command = "vscodeWeread.previous";
-    this.nextItem.name = "微信读书下一页";
+    this.previousItem.command = "vscodeReading.previous";
+    this.nextItem.name = "阅读下一页";
     this.nextItem.text = "›";
     this.nextItem.tooltip = "下一页";
-    this.nextItem.command = "vscodeWeread.next";
-    this.nextChapterItem.name = "微信读书下一章";
+    this.nextItem.command = "vscodeReading.next";
+    this.nextChapterItem.name = "阅读下一章";
     this.nextChapterItem.text = "»";
     this.nextChapterItem.tooltip = "下一章";
-    this.nextChapterItem.command = "vscodeWeread.nextChapter";
+    this.nextChapterItem.command = "vscodeReading.nextChapter";
   }
 
   async start(): Promise<void> {
@@ -68,7 +68,7 @@ export class StatusBarReader implements vscode.Disposable {
       const lastBookId = this.state.get<string>(StatusBarReader.lastBookKey);
       const lastBook = lastBookId ? books.find((book) => book.bookId === lastBookId) : undefined;
       if (!lastBook) {
-        vscode.window.showInformationMessage("请先使用“微信读书：开始阅读”或“微信读书：书架”。");
+        vscode.window.showInformationMessage("请先使用“阅读：开始阅读”或“阅读：书架”。");
         return;
       }
       await this.prepareBook(lastBook);
@@ -190,8 +190,16 @@ export class StatusBarReader implements vscode.Disposable {
 
   async clearHistory(): Promise<void> {
     await Promise.all(this.state.keys()
-      .filter((key) => key === StatusBarReader.lastBookKey || key.startsWith("vscodeWeread.lastChapterUid.") || key.startsWith("vscodeWeread.lastFragmentIndex."))
+      .filter((key) => key === StatusBarReader.lastBookKey || key.startsWith("vscodeReading.lastChapterUid.") || key.startsWith("vscodeReading.lastFragmentIndex.") || key.startsWith("vscodeWeread."))
       .map((key) => this.state.update(key, undefined)));
+    this.book = undefined;
+    this.chapters = [];
+    this.fragments = [];
+    this.chapterIndex = 0;
+    this.fragmentIndex = 0;
+    this.reading = false;
+    this.hideItems();
+    await vscode.commands.executeCommand("setContext", "vscodeReading.readerStarted", false);
   }
 
   refreshConfiguration(): void {
@@ -227,7 +235,7 @@ export class StatusBarReader implements vscode.Disposable {
       throw error;
     }
     this.chapterIndex = index;
-    this.fragments = splitForStatusBar(text, vscode.workspace.getConfiguration("vscodeWeread").get("statusBarMaxLength", 50));
+    this.fragments = splitForStatusBar(text, vscode.workspace.getConfiguration("vscodeReading").get("statusBarMaxLength", 50));
     if (!this.fragments.length) throw new Error("章节正文为空，可能没有阅读权限或登录态已失效");
     this.fragmentIndex = preferredFragment === undefined
       ? (goToEnd ? this.fragments.length - 1 : 0)
@@ -235,7 +243,7 @@ export class StatusBarReader implements vscode.Disposable {
     this.reading = true;
     await this.state.update(StatusBarReader.lastBookKey, this.book.bookId);
     await this.state.update(StatusBarReader.lastChapterKey(this.book.bookId), chapter.chapterUid);
-    await vscode.commands.executeCommand("setContext", "vscodeWeread.readerStarted", true);
+    await vscode.commands.executeCommand("setContext", "vscodeReading.readerStarted", true);
     this.render();
   }
 
@@ -251,7 +259,7 @@ export class StatusBarReader implements vscode.Disposable {
   }
 
   private showItems(): void {
-    const showControls = vscode.workspace.getConfiguration("vscodeWeread").get("showControlButtons", false);
+    const showControls = vscode.workspace.getConfiguration("vscodeReading").get("showControlButtons", false);
     if (showControls) {
       this.previousChapterItem.show();
       this.previousItem.show();
@@ -268,7 +276,7 @@ export class StatusBarReader implements vscode.Disposable {
       this.nextChapterItem.hide();
     }
     this.visible = true;
-    void vscode.commands.executeCommand("setContext", "vscodeWeread.readerVisible", true);
+    void vscode.commands.executeCommand("setContext", "vscodeReading.readerVisible", true);
   }
 
   private hideItems(): void {
@@ -278,11 +286,11 @@ export class StatusBarReader implements vscode.Disposable {
     this.nextItem.hide();
     this.nextChapterItem.hide();
     this.visible = false;
-    void vscode.commands.executeCommand("setContext", "vscodeWeread.readerVisible", false);
+    void vscode.commands.executeCommand("setContext", "vscodeReading.readerVisible", false);
   }
 
   private applyConfiguration(): void {
-    const clickable = vscode.workspace.getConfiguration("vscodeWeread").get("clickContentToNext", false);
-    this.item.command = clickable ? "vscodeWeread.next" : undefined;
+    const clickable = vscode.workspace.getConfiguration("vscodeReading").get("clickContentToNext", false);
+    this.item.command = clickable ? "vscodeReading.next" : undefined;
   }
 }
