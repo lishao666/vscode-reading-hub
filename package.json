@@ -5,6 +5,7 @@
   "version": "0.1.0",
   "publisher": "local",
   "license": "MIT",
+  "icon": "images/icon.png",
   "homepage": "https://github.com/lishao666/vscode-reading-hub#readme",
   "repository": {
     "type": "git",
