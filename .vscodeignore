@@ -16,3 +16,4 @@ dist/readerPanel.js
 .cache/**
 tmp/**
 .gitignore
+.cursorrules

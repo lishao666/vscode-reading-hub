@@ -379,6 +379,8 @@ npx tsc --noEmit
 npx vsce package
 ```
 
+维护者的 Visual Studio Marketplace 与 Open VSX 双市场同步发布流程见 [PUBLISHING.md](./PUBLISHING.md)。
+
 ## 许可证与第三方权利
 
 本项目采用 MIT License，该许可证仅适用于本项目自身源代码，不授予用户对微信读书、腾讯商标、书籍正文、腾讯接口或其他第三方内容的任何权利。
