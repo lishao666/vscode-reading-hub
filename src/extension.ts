@@ -102,6 +102,20 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
 
+  const toggleControlButtons = vscode.commands.registerCommand("vscodeReading.toggleControlButtons", async () => {
+    const configuration = vscode.workspace.getConfiguration("vscodeReading");
+    const enabled = !configuration.get<boolean>("showControlButtons", false);
+    await configuration.update("showControlButtons", enabled, vscode.ConfigurationTarget.Global);
+    vscode.window.showInformationMessage(`阅读操作按钮已${enabled ? "显示" : "隐藏"}。`);
+  });
+
+  const toggleClickContentToNext = vscode.commands.registerCommand("vscodeReading.toggleClickContentToNext", async () => {
+    const configuration = vscode.workspace.getConfiguration("vscodeReading");
+    const enabled = !configuration.get<boolean>("clickContentToNext", false);
+    await configuration.update("clickContentToNext", enabled, vscode.ConfigurationTarget.Global);
+    vscode.window.showInformationMessage(`点击正文翻页已${enabled ? "允许" : "禁止"}。`);
+  });
+
   const clearData = vscode.commands.registerCommand("vscodeReading.clearData", async () => {
     const confirmed = await vscode.window.showWarningMessage("确定清除已保存的 API Key、Cookie、阅读位置和内存正文缓存吗？", { modal: true }, "清除");
     if (confirmed !== "清除") return;
@@ -110,7 +124,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.showInformationMessage("登录信息、阅读位置和本地正文缓存已清除。");
   });
 
-  context.subscriptions.push(configureApiKey, configureSession, login, openReader, selectBook, selectChapter, refresh, previous, next, previousChapter, nextChapter, hide, clearData, configurationListener, statusReader);
+  context.subscriptions.push(configureApiKey, configureSession, login, openReader, selectBook, selectChapter, refresh, previous, next, previousChapter, nextChapter, hide, toggleControlButtons, toggleClickContentToNext, clearData, configurationListener, statusReader);
 }
 
 export function deactivate(): void {}

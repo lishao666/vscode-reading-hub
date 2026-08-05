@@ -36,7 +36,9 @@
     "onCommand:vscodeReading.login",
     "onCommand:vscodeReading.configureApiKey",
     "onCommand:vscodeReading.configureSession",
-    "onCommand:vscodeReading.clearData"
+    "onCommand:vscodeReading.clearData",
+    "onCommand:vscodeReading.toggleControlButtons",
+    "onCommand:vscodeReading.toggleClickContentToNext"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -93,6 +95,14 @@
       {
         "command": "vscodeReading.clearData",
         "title": "阅读：清除登录信息和缓存"
+      },
+      {
+        "command": "vscodeReading.toggleControlButtons",
+        "title": "阅读：显示/隐藏操作按钮"
+      },
+      {
+        "command": "vscodeReading.toggleClickContentToNext",
+        "title": "阅读：允许/禁止点击正文翻页"
       }
     ],
     "keybindings": [
