@@ -2,7 +2,7 @@
   "name": "vscode-reading-hub",
   "displayName": "VS Code 阅读中心",
   "description": "非官方第三方阅读工具，在 VS Code 状态栏按页显示用户有权访问的阅读内容。",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "LiShao",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -17,8 +17,17 @@
   "engines": {
     "vscode": "^1.90.0"
   },
-  "categories": ["Other"],
-  "keywords": ["WeRead", "微信读书", "reading", "book", "reader", "阅读"],
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "WeRead",
+    "微信读书",
+    "reading",
+    "book",
+    "reader",
+    "阅读"
+  ],
   "activationEvents": [
     "onCommand:vscodeReading.openReader",
     "onCommand:vscodeReading.selectBook",
@@ -32,27 +41,96 @@
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
-      { "command": "vscodeReading.openReader", "title": "阅读：开始阅读", "icon": "$(book-open)" },
-      { "command": "vscodeReading.selectBook", "title": "阅读：书架" },
-      { "command": "vscodeReading.selectChapter", "title": "阅读：选择章节" },
-      { "command": "vscodeReading.refresh", "title": "阅读：刷新" },
-      { "command": "vscodeReading.login", "title": "阅读：登录当前阅读服务" },
-      { "command": "vscodeReading.previous", "title": "阅读：上一页" },
-      { "command": "vscodeReading.next", "title": "阅读：下一页" },
-      { "command": "vscodeReading.previousChapter", "title": "阅读：上一章" },
-      { "command": "vscodeReading.nextChapter", "title": "阅读：下一章" },
-      { "command": "vscodeReading.hide", "title": "阅读：老板键（显示/隐藏）" },
-      { "command": "vscodeReading.configureApiKey", "title": "阅读：配置服务 API Key" },
-      { "command": "vscodeReading.configureSession", "title": "阅读：配置网页登录态" },
-      { "command": "vscodeReading.clearData", "title": "阅读：清除登录信息和缓存" }
+      {
+        "command": "vscodeReading.openReader",
+        "title": "阅读：开始阅读",
+        "icon": "$(book-open)"
+      },
+      {
+        "command": "vscodeReading.selectBook",
+        "title": "阅读：书架"
+      },
+      {
+        "command": "vscodeReading.selectChapter",
+        "title": "阅读：选择章节"
+      },
+      {
+        "command": "vscodeReading.refresh",
+        "title": "阅读：刷新"
+      },
+      {
+        "command": "vscodeReading.login",
+        "title": "阅读：登录当前阅读服务"
+      },
+      {
+        "command": "vscodeReading.previous",
+        "title": "阅读：上一页"
+      },
+      {
+        "command": "vscodeReading.next",
+        "title": "阅读：下一页"
+      },
+      {
+        "command": "vscodeReading.previousChapter",
+        "title": "阅读：上一章"
+      },
+      {
+        "command": "vscodeReading.nextChapter",
+        "title": "阅读：下一章"
+      },
+      {
+        "command": "vscodeReading.hide",
+        "title": "阅读：老板键（显示/隐藏）"
+      },
+      {
+        "command": "vscodeReading.configureApiKey",
+        "title": "阅读：配置服务 API Key"
+      },
+      {
+        "command": "vscodeReading.configureSession",
+        "title": "阅读：配置网页登录态"
+      },
+      {
+        "command": "vscodeReading.clearData",
+        "title": "阅读：清除登录信息和缓存"
+      }
     ],
     "keybindings": [
-      { "command": "vscodeReading.openReader", "key": "ctrl+alt+;", "mac": "cmd+alt+;" },
-      { "command": "vscodeReading.previous", "key": "ctrl+alt+,", "mac": "cmd+,", "when": "vscodeReading.readerVisible && config.vscodeReading.enableDefaultKeybindings" },
-      { "command": "vscodeReading.next", "key": "ctrl+alt+.", "mac": "cmd+.", "when": "vscodeReading.readerVisible && config.vscodeReading.enableDefaultKeybindings" },
-      { "command": "vscodeReading.previousChapter", "key": "ctrl+alt+up", "mac": "cmd+alt+up", "when": "vscodeReading.readerVisible && config.vscodeReading.enableDefaultKeybindings" },
-      { "command": "vscodeReading.nextChapter", "key": "ctrl+alt+down", "mac": "cmd+alt+down", "when": "vscodeReading.readerVisible && config.vscodeReading.enableDefaultKeybindings" },
-      { "command": "vscodeReading.hide", "key": "ctrl+alt+m", "mac": "ctrl+cmd+m", "when": "vscodeReading.readerStarted && config.vscodeReading.enableDefaultKeybindings" }
+      {
+        "command": "vscodeReading.openReader",
+        "key": "ctrl+alt+;",
+        "mac": "cmd+alt+;"
+      },
+      {
+        "command": "vscodeReading.previous",
+        "key": "ctrl+alt+,",
+        "mac": "cmd+,",
+        "when": "vscodeReading.readerVisible && config.vscodeReading.enableDefaultKeybindings"
+      },
+      {
+        "command": "vscodeReading.next",
+        "key": "ctrl+alt+.",
+        "mac": "cmd+.",
+        "when": "vscodeReading.readerVisible && config.vscodeReading.enableDefaultKeybindings"
+      },
+      {
+        "command": "vscodeReading.previousChapter",
+        "key": "ctrl+alt+up",
+        "mac": "cmd+alt+up",
+        "when": "vscodeReading.readerVisible && config.vscodeReading.enableDefaultKeybindings"
+      },
+      {
+        "command": "vscodeReading.nextChapter",
+        "key": "ctrl+alt+down",
+        "mac": "cmd+alt+down",
+        "when": "vscodeReading.readerVisible && config.vscodeReading.enableDefaultKeybindings"
+      },
+      {
+        "command": "vscodeReading.hide",
+        "key": "ctrl+alt+m",
+        "mac": "ctrl+cmd+m",
+        "when": "vscodeReading.readerStarted && config.vscodeReading.enableDefaultKeybindings"
+      }
     ],
     "configuration": {
       "title": "VS Code 阅读中心",
@@ -78,6 +156,11 @@
           "type": "boolean",
           "default": true,
           "description": "启用阅读器默认快捷键；关闭后可在键盘快捷方式中自行绑定命令"
+        },
+        "vscodeReading.proxy": {
+          "type": "string",
+          "default": "",
+          "description": "可选的 HTTPS 代理地址；留空时使用 VS Code 的 http.proxy，仍为空时直接连接"
         }
       }
     }
@@ -95,6 +178,7 @@
     "typescript": "^5.7.0"
   },
   "dependencies": {
+    "https-proxy-agent": "^7.0.6",
     "playwright-core": "^1.54.0"
   }
 }

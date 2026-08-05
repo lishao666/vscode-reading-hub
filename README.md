@@ -235,6 +235,7 @@ API Key 会保存到 VS Code `SecretStorage`。输入框采用密码模式，不
 | `vscodeReading.showControlButtons` | `false` | 是否显示 `« ‹ › »` 操作按钮 |
 | `vscodeReading.clickContentToNext` | `false` | 是否允许点击正文进入下一页 |
 | `vscodeReading.enableDefaultKeybindings` | `true` | 是否启用插件提供的默认快捷键 |
+| `vscodeReading.proxy` | 空 | 可选 HTTPS 代理；留空时使用 VS Code 的 `http.proxy`，仍为空时直接连接 |
 
 修改文字长度后，对后续加载或刷新的章节生效。需要立即重新分页时，可以执行 `阅读：刷新`。
 
@@ -267,6 +268,19 @@ API Key 会保存到 VS Code `SecretStorage`。输入框采用密码模式，不
 ### 提示“尚未配置微信读书网页登录态”
 
 执行 `阅读：登录当前阅读服务`，或使用 `阅读：配置网页登录态` 手动粘贴 cURL。
+
+### 提示 TLS、socket disconnected、ECONNRESET 或请求超时
+
+插件会自动重试两次短暂的网络连接错误。如果仍然失败：
+
+- 先再次执行原命令，确认是否只是临时网络波动；
+- 检查浏览器能否打开微信读书网页版；
+- 使用代理时，在设置中填写 `vscodeReading.proxy`，例如 `http://127.0.0.1:7890`；
+- 也可以配置 VS Code 自带的 `http.proxy`，插件会在专用代理为空时使用它；
+- 检查代理软件是否正在运行，以及代理端口是否与设置一致；
+- 不使用代理时，清空上述代理设置后重新加载 VS Code。
+
+代理会承载阅读请求，请只使用自己信任的代理服务，不要使用来源不明的公共代理。
 
 ### 书架为空
 

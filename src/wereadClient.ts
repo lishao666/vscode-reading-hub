@@ -1,6 +1,7 @@
 import * as https from "node:https";
 import { createHash } from "node:crypto";
-import type * as vscode from "vscode";
+import * as vscode from "vscode";
+import { HttpsProxyAgent } from "https-proxy-agent";
 import { decodeContentShards, encodeWeReadValue, htmlToText, normalizeText, signQuery } from "./codec";
 import { readRenderedChapter } from "./renderedChapter";
 import type { Book, Chapter, HttpResponse, ReaderState, WebSession } from "./types";
@@ -250,9 +251,9 @@ export class WeReadClient {
     }
   }
 
-  private request(method: string, requestUrl: string, headers: Record<string, string>, body?: string, redirectCount = 0): Promise<HttpResponse> {
+  private request(method: string, requestUrl: string, headers: Record<string, string>, body?: string, redirectCount = 0, retryCount = 0): Promise<HttpResponse> {
     return new Promise((resolve, reject) => {
-      const request = https.request(requestUrl, { method, headers, timeout: 15_000 }, (response) => {
+      const request = https.request(requestUrl, { method, headers, timeout: 15_000, agent: this.proxyAgent() }, (response) => {
         const chunks: Buffer[] = [];
         response.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
         response.on("end", () => {
@@ -261,16 +262,44 @@ export class WeReadClient {
           if (location && statusCode >= 300 && statusCode < 400 && redirectCount < 5) {
             const redirected = new URL(location, requestUrl).toString();
             const nextMethod = statusCode === 303 ? "GET" : method;
-            void this.request(nextMethod, redirected, headers, nextMethod === "GET" ? undefined : body, redirectCount + 1).then(resolve, reject);
+            void this.request(nextMethod, redirected, headers, nextMethod === "GET" ? undefined : body, redirectCount + 1, 0).then(resolve, reject);
             return;
           }
           resolve({ statusCode, headers: response.headers, body: Buffer.concat(chunks).toString("utf8") });
         });
       });
       request.on("timeout", () => request.destroy(new Error("微信读书请求超时")));
-      request.on("error", reject);
+      request.on("error", (error: NodeJS.ErrnoException) => {
+        if (retryCount < 2 && this.isRetryableNetworkError(error)) {
+          const delay = retryCount === 0 ? 300 : 900;
+          setTimeout(() => {
+            void this.request(method, requestUrl, headers, body, redirectCount, retryCount + 1).then(resolve, reject);
+          }, delay);
+          return;
+        }
+        const host = new URL(requestUrl).hostname;
+        const code = error.code ? `，${error.code}` : "";
+        reject(new Error(`无法连接 ${host}${code}。请检查网络或代理设置后重试`));
+      });
       if (body) request.write(body);
       request.end();
     });
+  }
+
+  private proxyAgent(): HttpsProxyAgent<string> | undefined {
+    const extensionProxy = vscode.workspace.getConfiguration("vscodeReading").get<string>("proxy", "").trim();
+    const vscodeProxy = vscode.workspace.getConfiguration("http").get<string>("proxy", "").trim();
+    const proxy = extensionProxy || vscodeProxy;
+    if (!proxy) return undefined;
+    try {
+      return new HttpsProxyAgent(proxy);
+    } catch {
+      throw new Error("代理地址格式无效，请检查 vscodeReading.proxy 或 VS Code http.proxy 设置");
+    }
+  }
+
+  private isRetryableNetworkError(error: NodeJS.ErrnoException): boolean {
+    return new Set(["ECONNRESET", "ETIMEDOUT", "EPIPE", "ECONNREFUSED", "EAI_AGAIN", "ENETUNREACH", "EHOSTUNREACH"]).has(error.code || "")
+      || /TLS connection|socket disconnected|socket hang up|请求超时/i.test(error.message);
   }
 }
