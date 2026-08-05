@@ -3,7 +3,7 @@
   "displayName": "VS Code 阅读中心",
   "description": "非官方第三方阅读工具，在 VS Code 状态栏按页显示用户有权访问的阅读内容。",
   "version": "0.1.0",
-  "publisher": "local",
+  "publisher": "LiShao",
   "license": "MIT",
   "icon": "images/icon.png",
   "homepage": "https://github.com/lishao666/vscode-reading-hub#readme",
