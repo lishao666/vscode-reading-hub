@@ -11,7 +11,7 @@
 | `package.json.name` | `vscode-reading-hub` | 中性技术名称，可承载多个阅读来源 | 发布前确认 Marketplace 中未被占用 |
 | `package.json.displayName` | `VS Code 阅读中心` | 不再以单一阅读服务作为插件身份 | 保持非官方声明，不使用第三方官方视觉资产 |
 | `package.json.description` | `非官方第三方阅读工具，在 VS Code 状态栏按页显示用户有权访问的阅读内容。` | 已避免把插件描述成单一平台客户端 | 后续新增来源时继续强调账号权限和本地展示边界 |
-| `package.json.keywords` | `WeRead`、`微信读书` | 兼容平台描述有搜索价值，但仍存在商标使用风险 | 如保留，应在 Marketplace 首屏同时显示非官方声明；如权利方提出要求，应移除 |
+| `package.json.keywords` | `WeRead`、`微信读书`、`Fanqie`、`番茄小说` | 兼容平台描述有搜索价值，但仍存在商标使用风险 | README 首屏必须保留非官方声明；如权利方提出要求，应移除 |
 | `contributes.configuration.title` | `VS Code 阅读中心` | 已改为中性设置标题 | 后续按 provider 分组来源专属设置 |
 | 命令和状态栏文案 | `阅读：…` | 已改为中性命令前缀 | 来源专属登录流程可在选择 provider 后展示对应品牌说明 |
 
@@ -25,6 +25,6 @@
 
 ## 当前视觉资源
 
-- 项目目前没有 Marketplace PNG 图标。
-- 项目没有 README 截图、官方 Logo、腾讯 Logo或原始设计稿。
-- 发布前需要提供至少 `128×128` 的原创 PNG 图标，并确认不使用或高度近似任何第三方官方视觉资产。
+- Marketplace 使用项目自有的 `images/icon.png`，发布前应保留图标源文件和权利确认记录。
+- README 不使用微信读书、番茄小说、腾讯或字节跳动官方 Logo 和官方视觉资产。
+- 后续增加截图时必须遮挡账号信息、书籍正文、Cookie、Token 和其他敏感数据。

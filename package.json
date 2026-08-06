@@ -2,7 +2,7 @@
   "name": "vscode-reading-hub",
   "displayName": "VS Code 阅读中心",
   "description": "非官方第三方阅读工具，在 VS Code 状态栏按页显示用户有权访问的阅读内容。",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "publisher": "LiShao",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -23,6 +23,8 @@
   "keywords": [
     "WeRead",
     "微信读书",
+    "Fanqie",
+    "番茄小说",
     "reading",
     "book",
     "reader",
@@ -30,6 +32,7 @@
   ],
   "activationEvents": [
     "onCommand:vscodeReading.openReader",
+    "onCommand:vscodeReading.switchProvider",
     "onCommand:vscodeReading.selectBook",
     "onCommand:vscodeReading.selectChapter",
     "onCommand:vscodeReading.refresh",
@@ -44,6 +47,10 @@
   "contributes": {
     "commands": [
       {
+        "command": "vscodeReading.switchProvider",
+        "title": "阅读：切换书源"
+      },
+      {
         "command": "vscodeReading.openReader",
         "title": "阅读：开始阅读",
         "icon": "$(book-open)"
@@ -54,7 +61,7 @@
       },
       {
         "command": "vscodeReading.selectChapter",
-        "title": "阅读：选择章节"
+        "title": "阅读：目录"
       },
       {
         "command": "vscodeReading.refresh",
@@ -171,6 +178,11 @@
           "type": "string",
           "default": "",
           "description": "可选的 HTTPS 代理地址；留空时使用 VS Code 的 http.proxy，仍为空时直接连接"
+        },
+        "vscodeReading.performanceLogging": {
+          "type": "boolean",
+          "default": false,
+          "description": "在“阅读中心性能”输出频道记录不含正文和凭据的耗时数据"
         }
       }
     }
@@ -183,12 +195,15 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/opentype.js": "^1.3.10",
     "@types/vscode": "^1.90.0",
     "@vscode/vsce": "^3.6.0",
     "typescript": "^5.7.0"
   },
   "dependencies": {
     "https-proxy-agent": "^7.0.6",
-    "playwright-core": "^1.54.0"
+    "opentype.js": "^2.0.0",
+    "playwright-core": "^1.54.0",
+    "wawoff2": "^2.0.1"
   }
 }

@@ -4,7 +4,7 @@ import * as vscode from "vscode";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { decodeContentShards, encodeWeReadValue, htmlToText, normalizeText, signQuery } from "./codec";
 import { readRenderedChapter } from "./renderedChapter";
-import type { Book, Chapter, HttpResponse, ReaderState, WebSession } from "./types";
+import type { Book, BookshelfPage, Chapter, HttpResponse, ReaderState, WebSession, ReadingClient } from "./types";
 
 const SKILL_ENDPOINT = "https://i.weread.qq.com/api/agent/gateway";
 const SKILL_VERSION = "1.0.4";
@@ -14,28 +14,45 @@ const LEGACY_SECRET_API_KEY = "vscodeWeread.apiKey";
 const LEGACY_SECRET_SESSION = "vscodeWeread.webSession";
 const READER_TOKEN = "3c5c8717f3daf09iop3423zafeqoi";
 
-export class WeReadClient {
-  // Cache chapters read during the current extension process only. Chapter
-  // text is never persisted to disk or prefetched in the background.
+export class WeReadClient implements ReadingClient {
+  // Cache chapters read or prefetched during the current extension process.
   private readonly chapterCache = new Map<string, string>();
+  private readonly chapterRequests = new Map<string, Promise<string>>();
+  private readonly readerStateCache = new Map<string, { state: ReaderState; expiresAt: number }>();
+  private bookshelfCache?: Book[];
+  private sessionCache?: WebSession;
+  private sessionWriteTimer?: NodeJS.Timeout;
+  private readonly directAgent = new https.Agent({ keepAlive: true, maxSockets: 6, maxFreeSockets: 2, timeout: 30_000 });
+  private cachedProxyUrl = "";
+  private cachedProxyAgent?: HttpsProxyAgent<string>;
   private dataGeneration = 0;
 
-  constructor(private readonly secrets: vscode.SecretStorage) {}
+  constructor(private readonly secrets: vscode.SecretStorage, private readonly output?: vscode.OutputChannel) {}
 
   setApiKey(value: string): Thenable<void> { return this.secrets.store(SECRET_API_KEY, value); }
   async getApiKey(): Promise<string | undefined> {
     return this.getAndMigrateSecret(SECRET_API_KEY, LEGACY_SECRET_API_KEY);
   }
-  setSession(value: WebSession): Thenable<void> { return this.secrets.store(SECRET_SESSION, JSON.stringify(value)); }
+  async setSession(value: WebSession): Promise<void> {
+    this.sessionCache = value;
+    await this.secrets.store(SECRET_SESSION, JSON.stringify(value));
+  }
 
   async getSession(): Promise<WebSession | undefined> {
+    if (this.sessionCache) return this.sessionCache;
     const value = await this.getAndMigrateSecret(SECRET_SESSION, LEGACY_SECRET_SESSION);
     if (!value) return undefined;
-    try { return JSON.parse(value) as WebSession; } catch { return undefined; }
+    try { return this.sessionCache = JSON.parse(value) as WebSession; } catch { return undefined; }
   }
 
   async clear(): Promise<void> {
     this.dataGeneration++;
+    if (this.sessionWriteTimer) clearTimeout(this.sessionWriteTimer);
+    this.sessionWriteTimer = undefined;
+    this.sessionCache = undefined;
+    this.readerStateCache.clear();
+    this.bookshelfCache = undefined;
+    this.chapterRequests.clear();
     await Promise.all([
       this.secrets.delete(SECRET_API_KEY),
       this.secrets.delete(SECRET_SESSION),
@@ -46,6 +63,12 @@ export class WeReadClient {
   }
 
   clearChapterCache(): void { this.chapterCache.clear(); }
+
+  async dispose(): Promise<void> {
+    await this.flushSessionWrite();
+    this.directAgent.destroy();
+    this.cachedProxyAgent?.destroy();
+  }
 
   private async getAndMigrateSecret(currentKey: string, legacyKey: string): Promise<string | undefined> {
     const current = await this.secrets.get(currentKey);
@@ -58,13 +81,25 @@ export class WeReadClient {
   }
 
   async getBookshelf(): Promise<Book[]> {
+    if (this.bookshelfCache) return this.bookshelfCache;
     const payload = await this.callSkill("/shelf/sync", {});
-    return (Array.isArray(payload.books) ? payload.books : []).map((book: any) => ({
+    return this.bookshelfCache = (Array.isArray(payload.books) ? payload.books : []).map((book: any) => ({
       bookId: String(book.bookId || ""), title: String(book.title || ""), author: String(book.author || ""), cover: book.cover
     })).filter((book: Book) => book.bookId && book.title);
   }
 
-  async getChapters(bookId: string): Promise<Chapter[]> {
+  async getBookshelfPage(cursor?: string, limit = 20, force = false): Promise<BookshelfPage> {
+    if (force) this.bookshelfCache = undefined;
+    const books = await this.getBookshelf();
+    const offset = Math.max(0, Number(cursor || 0) || 0);
+    const items = books.slice(offset, offset + limit);
+    const hasMore = offset + items.length < books.length;
+    return { items, hasMore, nextCursor: hasMore ? String(offset + items.length) : undefined };
+  }
+
+  async syncBookshelf(): Promise<Book[]> { return this.getBookshelf(); }
+
+  async getChapters(bookId: string, _force = false): Promise<Chapter[]> {
     const payload = await this.callSkill("/book/chapterinfo", { bookId });
     return (Array.isArray(payload.chapters) ? payload.chapters : []).map((chapter: any, index: number) => ({
       chapterUid: Number(chapter.chapterUid || 0),
@@ -82,25 +117,66 @@ export class WeReadClient {
   }
 
   async getChapterText(bookId: string, chapter: Chapter, force = false): Promise<string> {
+    const key = `${bookId}:${chapter.chapterUid}`;
+    if (!force) {
+      const pending = this.chapterRequests.get(key);
+      if (pending) return pending;
+    }
+    const request = this.loadChapterText(bookId, chapter, force);
+    if (!force) this.chapterRequests.set(key, request);
+    try { return await request; } finally { if (this.chapterRequests.get(key) === request) this.chapterRequests.delete(key); }
+  }
+
+  private async loadChapterText(bookId: string, chapter: Chapter, force: boolean): Promise<string> {
+    const started = Date.now();
     const generation = this.dataGeneration;
     const key = `${bookId}:${chapter.chapterUid}`;
-    if (!force && this.chapterCache.has(key)) return this.chapterCache.get(key)!;
+    if (!force && this.chapterCache.has(key)) { this.trace("chapter memory-cache", started); return this.chapterCache.get(key)!; }
     const session = await this.requireSession();
-    let state = await this.fetchReaderState(session, bookId, chapter.chapterUid, generation);
+    let stateResult = await this.getReaderState(session, bookId, chapter.chapterUid, generation);
     try {
-      const text = await this.fetchCompleteChapter(session, state, bookId, chapter, generation);
+      const text = await this.fetchCompleteChapter(session, stateResult.state, bookId, chapter, generation);
       this.assertCurrentGeneration(generation);
       this.chapterCache.set(key, text);
+      this.trace("chapter", started);
       return text;
     } catch (error) {
-      if (this.isAccessDenied(error)) throw error;
+      this.readerStateCache.delete(bookId);
+      if (this.isAccessDenied(error) && !stateResult.cached) throw error;
       this.assertCurrentGeneration(generation);
-      state = await this.fetchReaderState(session, bookId, chapter.chapterUid, generation);
-      const text = await this.fetchCompleteChapter(session, state, bookId, chapter, generation);
+      stateResult = await this.getReaderState(session, bookId, chapter.chapterUid, generation, true);
+      const text = await this.fetchCompleteChapter(session, stateResult.state, bookId, chapter, generation);
       this.assertCurrentGeneration(generation);
       this.chapterCache.set(key, text);
+      this.trace("chapter after state refresh", started);
       return text;
     }
+  }
+
+  async prefetchChapters(bookId: string, chapters: Chapter[]): Promise<void> {
+    for (const chapter of chapters.slice(0, 2)) {
+      const key = `${bookId}:${chapter.chapterUid}`;
+      if (this.chapterCache.has(key) || this.chapterRequests.has(key)) continue;
+      const request = this.loadChapterText(bookId, chapter, false);
+      this.chapterRequests.set(key, request);
+      try { await request; } catch { /* Background prefetch is intentionally silent. */ }
+      finally { if (this.chapterRequests.get(key) === request) this.chapterRequests.delete(key); }
+    }
+  }
+
+  private async getReaderState(session: WebSession, bookId: string, chapterUid: number, generation: number, force = false): Promise<{ state: ReaderState; cached: boolean }> {
+    const started = Date.now();
+    const cached = this.readerStateCache.get(bookId);
+    if (!force && cached && cached.expiresAt > Date.now()) { this.trace("ReaderState cache", started); return { state: cached.state, cached: true }; }
+    const state = await this.fetchReaderState(session, bookId, chapterUid, generation);
+    this.readerStateCache.set(bookId, { state, expiresAt: Date.now() + 5 * 60 * 1000 });
+    this.trace("ReaderState network", started);
+    return { state, cached: false };
+  }
+
+  private trace(operation: string, started: number): void {
+    if (!this.output || !vscode.workspace.getConfiguration("vscodeReading").get<boolean>("performanceLogging", false)) return;
+    this.output.appendLine(`[${new Date().toISOString()}] 微信读书 ${operation}: ${Date.now() - started}ms`);
   }
 
   private async fetchCompleteChapter(session: WebSession, state: ReaderState, bookId: string, chapter: Chapter, generation: number): Promise<string> {
@@ -244,16 +320,28 @@ export class WeReadClient {
     }
     session.cookie = [...values].map(([name, value]) => `${name}=${value}`).join("; ");
     this.assertCurrentGeneration(generation);
-    await this.setSession(session);
+    this.sessionCache = session;
+    this.scheduleSessionWrite();
     if (generation !== this.dataGeneration) {
       await this.secrets.delete(SECRET_SESSION);
       this.assertCurrentGeneration(generation);
     }
   }
 
+  private scheduleSessionWrite(): void {
+    if (this.sessionWriteTimer) clearTimeout(this.sessionWriteTimer);
+    this.sessionWriteTimer = setTimeout(() => { void this.flushSessionWrite(); }, 1_000);
+  }
+
+  private async flushSessionWrite(): Promise<void> {
+    if (this.sessionWriteTimer) clearTimeout(this.sessionWriteTimer);
+    this.sessionWriteTimer = undefined;
+    if (this.sessionCache) await this.secrets.store(SECRET_SESSION, JSON.stringify(this.sessionCache));
+  }
+
   private request(method: string, requestUrl: string, headers: Record<string, string>, body?: string, redirectCount = 0, retryCount = 0): Promise<HttpResponse> {
     return new Promise((resolve, reject) => {
-      const request = https.request(requestUrl, { method, headers, timeout: 15_000, agent: this.proxyAgent() }, (response) => {
+      const request = https.request(requestUrl, { method, headers, timeout: 15_000, agent: this.proxyAgent() || this.directAgent }, (response) => {
         const chunks: Buffer[] = [];
         response.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
         response.on("end", () => {
@@ -290,9 +378,16 @@ export class WeReadClient {
     const extensionProxy = vscode.workspace.getConfiguration("vscodeReading").get<string>("proxy", "").trim();
     const vscodeProxy = vscode.workspace.getConfiguration("http").get<string>("proxy", "").trim();
     const proxy = extensionProxy || vscodeProxy;
-    if (!proxy) return undefined;
+    if (!proxy) {
+      this.cachedProxyUrl = "";
+      this.cachedProxyAgent = undefined;
+      return undefined;
+    }
+    if (this.cachedProxyAgent && this.cachedProxyUrl === proxy) return this.cachedProxyAgent;
     try {
-      return new HttpsProxyAgent(proxy);
+      this.cachedProxyAgent?.destroy();
+      this.cachedProxyUrl = proxy;
+      return this.cachedProxyAgent = new HttpsProxyAgent(proxy);
     } catch {
       throw new Error("代理地址格式无效，请检查 vscodeReading.proxy 或 VS Code http.proxy 设置");
     }
